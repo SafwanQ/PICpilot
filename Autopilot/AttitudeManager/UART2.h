@@ -2,9 +2,9 @@
  * @file UART2.h
  * @author Mitch Hatfield
  * @date Jun 2013
- * @brief Settings for UART2 communication used for telemetry link 
+ * @brief Settings for UART2 communication used for telemetry link
  * @copyright Waterloo Aerial Robotics Group 2016 \n
- *   https://raw.githubusercontent.com/UWARG/PICpilot/master/LICENCE 
+ *   https://raw.githubusercontent.com/UWARG/PICpilot/master/LICENCE
  */
 
 #pragma once
@@ -13,6 +13,9 @@
 
 /** Initializes the UART2 connection **/
 void InitUART2();
+
+/** Resets the UART2 Receiver Interrupt Flag Status bit, so that subsequent interrupts can occur **/
+void resetUART2RXInterrupt();
 
 /** UART2 interrupt function routine for when data comes in from the XBEE **/
 void __attribute__((interrupt, no_auto_psv)) _U2RXInterrupt( void );

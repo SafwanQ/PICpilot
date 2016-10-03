@@ -2,13 +2,17 @@
  * @file UART2.c
  * @author Mitch Hatfield
  * @date Jun 2013
- * @brief Contains implementation for initializing UART2 
+ * @brief Contains implementation for initializing UART2
  * @copyright Waterloo Aerial Robotics Group 2016 \n
- *   https://raw.githubusercontent.com/UWARG/PICpilot/master/LICENCE 
+ *   https://raw.githubusercontent.com/UWARG/PICpilot/master/LICENCE
  */
 
 #include "main.h"
 #include "UART2.h"
+
+void inline resetUART2RXInterrupt(){
+	IFS1bits.U2RXIF = 0;
+}
 
 void InitUART2()
 {
@@ -84,7 +88,7 @@ void InitUART2()
 
         /* wait at least 104 usec (1/9600) before sending first char */
         int i = 0;
-        while (i < 4160)
+        while (i < 4160) //TODO This is very proceessor clock cycle dependent. Should improve this
         {
             Nop();
             i++;
