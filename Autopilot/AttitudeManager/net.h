@@ -30,6 +30,7 @@ extern "C" {
 
 #define OUTBOUND_QUEUE_SIZE 30
 #define INBOUND_QUEUE_SIZE 100
+    
 
 #define EDIT_NONE 0
 #define EDIT_PITCH_GAIN 1
@@ -48,6 +49,7 @@ extern "C" {
 #define TX_PACKET 0x10
 #define BROADCAST_RADIUS 1 //0 is infinite number of hops to reach target
 #define RAW_PACKET_BUFFER_SIZE 16   // Number of buffer regions to allow for incoming commands
+#define MAX_PACKET_SIZE 128 //size in bytes of the largest possible packet
 
 #define HEARTBEAT_TIMEOUT 10000 //In Milliseconds
     
