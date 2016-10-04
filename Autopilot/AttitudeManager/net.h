@@ -185,22 +185,23 @@ int sendTelemetryBlock(struct telem_block *telem);
  * Inbound relevant functions
  */
 
-// Clean up the command
+/**
+ * Destroys and deallocates a command
+ * @param The pointer to the command to remove
+ */
 void destroyCommand( struct command* cmd );
 
-// Get the next command
+/**
+ * Retrieve a command from the CommandBuffer
+ * @return Pointer reference to the command popped
+ **/
 struct command* popCommand();
 
-// Queue up another command
-int pushCommand(struct command* cmd);
-
-// Create a new command struct
-struct command* createCommand( char* rawPacket );
-
-// Check and make sure the char array is a valid packet
-int checkPacket( char* rawPacket);
-
-// Handle the inbound buffer
+/**
+ * Iterates through the entire raw packet buffer, and transfers
+ * all the valid ready packets into the command buffer for further processing
+ * by the state machine.
+ */
 void inboundBufferMaintenance(void);
 
 #ifdef	__cplusplus

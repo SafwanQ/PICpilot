@@ -2,9 +2,8 @@
  * @file net_inbound.c
  * @author Chris Hajduk
  * @date Sep 2015
- * @brief Implementation for handling UART input from the XBEE telemetry datalink
- * @copyright Waterloo Aerial Robotics Group 2016 \n
- *   https://raw.githubusercontent.com/UWARG/PICpilot/master/LICENCE
+ * @brief Implementation for handling UART input from the XBEE telemetry datalink * @copyright Waterloo Aerial Robotics Group 2016 \n
+ *  https://raw.githubusercontent.com/UWARG/PICpilot/master/LICENCE
  * @see http://ftp1.digi.com/support/documentation/90002173_R.pdf for the Xbee manual
  */
 
@@ -13,7 +12,8 @@
 #include "main.h"
 #include "UART2.h"
 
-/** Defines the start value of a new incoming valid telemetry packet **/
+/** Defines the start value of a new incoming valid telemetry packet.
+ * This is defined in the XBEE APi docs **/
 #define START_DELIMITER 0x7E
 
 /** The index in the raw telemetry packet that indicates the length of the data stream */
@@ -52,10 +52,11 @@ typedef enum {
  * of the containing payload
  */
 typedef struct {
-	char payload[MAX_PACKET_SIZE + 1];
-	RawPacketStatus status;
-        short latest_byte; //which byte in the packets payload we're writing to
-        short length;
+    char payload[MAX_PACKET_SIZE + 1];
+    RawPacketStatus status;
+    short latest_byte; //which byte in the packets payload we're writing to
+    short length;
+    char checksum;
 } RawPacket;
 
 /**
@@ -65,7 +66,7 @@ typedef struct {
  * Will not receive any more packets if the buffer is full.
  */
 typedef struct {
-	RawPacket packets[RAW_PACKET_BUFFER_SIZE]; /** **/
+	RawPacket packets[RAW_PACKET_BUFFER_SIZE];
 	short curr_packet; /** which packet in the buffer  we're currently writing to **/
 } RawPacketBuffer;
 
@@ -101,19 +102,11 @@ static CommandBuffer commandBuffer;
 initRawPacketBuffer(&rawPacketBuffer);
 initCommandBuffer(&commandBuffer);
 
-/**
- * Destroys and deallocates a command
- * @param The command to remove
- */
 void destroyCommand(struct command *cmd) {
     free(cmd);
     cmd = NULL;
 }
 
-/**
- * Pops a command out of the command buffer queue
- * @return Pointer reference to the command popped
- */
 struct command* popCommand() {
     struct command* cmd = inBuffer[inbuff_start];
     if ( ! cmd ) return 0; //if its an already deleted(deallocated) pointer/command, do nothing
@@ -122,7 +115,12 @@ struct command* popCommand() {
     return cmd;
 }
 
-int pushCommand(struct command* cmd) {
+/**
+ * Pushes a command onto the command buffer queue.
+ * This method is only used internally by the inboundBufferMaintenance function, so no need to expose this function
+ * @param cmd Command to insert into the buffer
+ */
+static int pushCommand(struct command* cmd) {
     if ( inbuff_end == ( inbuff_start - 1 + INBOUND_QUEUE_SIZE ) % INBOUND_QUEUE_SIZE ) {
         return 0;   // If no room for commands, fail
     }
@@ -131,58 +129,66 @@ int pushCommand(struct command* cmd) {
     return 1;
 }
 
-/** Parses a raw packet from the telemetry and converts it into a command
- * @return The parsed command containing the command number and data
+/**
+ * Parses a raw packet from the telemetry and converts it into a command
+ * @return A pointer to the parsed command, or null if it could not be created
  */
-struct command* createCommand( char* rawPacket ) {
+static struct command* createCommand(RawPacket* packet) {
     struct command* cmd = malloc(sizeof(struct command));
-    if ( ! cmd ) {  // Malloc failed ?
-        return 0;
+    if (! cmd) { //malloc might fail in case we run out of memory. We don't want to fatally crash because of this
+        return NULL;
     }
-    cmd->data_length = rawPacket[DATA_LENGTH_INDEX];
-    cmd->cmd = rawPacket[DATA_COMMAND_NUM_INDEX];
+    cmd->data_length = packet->length;
+    cmd->cmd = packet->payload[DATA_COMMAND_NUM_INDEX];
     int j = 0;
     //Data comes right after the Command Number, in this case at the 16th byte
     for (int i = DATA_COMMAND_NUM_INDEX + 1; i < 15 + cmd->data_length - DATA_END_PADDING_OFFSET; i++ ){
-        cmd->data[j++] = rawPacket[i];
+        cmd->data[j++] = packet->payload[i];
     }
     cmd->data[j] = '\0';// Null terminate the string so can use SendUart
     return cmd;
 }
 
-// Return 1 if packet is valid
-int checkPacket(char* rawPacket) {
-    unsigned int i = 2;
-    char packetLength = rawPacket[i++];
-    char checksum = 0;
-    char packetChecksum = 0;
+/**
+ * @brief Checks validity of a raw packet based on its checksum.
+ * @return 1 if packet is valid, 0 otherwise
+ * According to the XBEE API documentation, the last byte of a packet is the checksum, and does
+ * not count towards the length specified by the first 2 bytes of the packet. The checksum
+ * is the result of adding all the data bytes, whilst only keeping the 8 least significant bits. Then
+ * the result is subtracted from 255, or 0xFF. To verify data integrity, we add all the data bytes
+ * whilst keeping only the latest 8 bits, and add the checksum from the last byte of the payload.
+ * If it equals to 0xFF, then our data is intact and usable.
+ * @see Page 85 of the Xbee manual listed above
+ */
+static char isValidRawPacket(RawPacket* packet){
+    unsigned char checksum = 0;
+    //we don't want to count the actual checksum value, hence the -1 after the length
+    for (int i = DATA_LENGTH_INDEX + 2; i < packet->length - 1; i++){
+        checksum += packet->payload[i];
+    }
 
-    for (i = 3; i < packetLength + 3; i++){
-        checksum += rawPacket[i];
-    }
-    packetChecksum = 0xFF - rawPacket[i];
-    if (checksum == packetChecksum){
-        return 1;                       // TODO: checksums are for suckers, because fuck you, thats why
-
-    }
-    else{
-        return 0;
-    }
+    return (checksum + packet->checksum) == 0xFF;
 }
 
 void inboundBufferMaintenance(void) {
-    int i;
-    for ( i = 0; i < RAW_PACKET_BUFFER_SIZE; i++ ) {
-        if ( rawPacketStatus[i] == READY && checkPacket(rawPackets[i]) ) {
-            struct command* cmd = createCommand( rawPackets[i] );
-            if ( cmd ) {            // create command was successful ?
-                pushCommand( cmd ); // queue it up
-                rawPacketStatus[i] = EMPTY;         // buffer is now good for writing another packet
+    for (int i = 0; i < RAW_PACKET_BUFFER_SIZE; i++) {
+        RawPacket* packet = rawPacketBuffer->packets[i];
+        //check if packet is ready to be transferred
+        if (packet->status == READY){
+            if(isValidPacket(packet)){ //check integrity of the packet based on its checksum
+                //create the command
+                struct command* cmd = createCommand(packet);
+                //Check if the command was successfully created. If so, push it to the CommandBuffer.
+                //If the command could not be created due to a shortage of memory, we'll discard the command
+                if(cmd != NULL){
+                    if(!pushCommand(cmd)){ //if we were not able to push the command to the command buffer, it means that its full and we should wait
+                        destroyCommand(cmd);
+                        return;
+                    }
+                }
             }
+            packet->status = EMPTY;
         }
-    }
-    if ( rawPacketStatus[0] == EMPTY ) {
-        rawPacketStatus[0] = BUSY;
     }
 }
 
@@ -231,8 +237,11 @@ static void writeByteToRawBuffer(unsigned char data, RawPacketBuffer* buffer){
 		curr_packet->latest_byte++;
 
 		//check if this was the last byte of data for the packet based on its length
-		if ((curr_packet->latest_byte > DATA_LENGTH_INDEX + 1) && (curr_packet->latest_byte - DATA_LENGTH_INDEX - 2) == curr_packet->length){
+		//if we've written more than 3 bytes AND we've written the length of the data PLUS 3 bytes for the start,
+		//plus 1 byte for the checksum, which doesnt count towards the length of the packet
+		if ((curr_packet->latest_byte > DATA_LENGTH_INDEX + 1) && (curr_packet->latest_byte - 2 - (DATA_LENGTH_INDEX + 1)) == curr_packet->length){
 			curr_packet->status = READY; //this the status of this packet as ready, so that it may be transferred to the command buffer later
+			curr_packet->checksum = curr_packet->payload[curr_packet->latest_byte - 1]; //save the checksum for future reference for next time
 			//this is a circular buffer, so have the pointer go back to the start if it exceeds the size of the buffer
 			buffer->curr_packet = (buffer->curr_packet + 1) % INBOUND_QUEUE_SIZE;
 		}
