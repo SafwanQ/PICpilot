@@ -102,16 +102,14 @@ static CommandBuffer commandBuffer;
 initRawPacketBuffer(&rawPacketBuffer);
 initCommandBuffer(&commandBuffer);
 
-void destroyCommand(struct command *cmd) {
+void destroyCommand(struct command* cmd) {
     free(cmd);
-    cmd = NULL;
 }
 
 struct command* popCommand() {
-    struct command* cmd = inBuffer[inbuff_start];
-    if ( ! cmd ) return 0; //if its an already deleted(deallocated) pointer/command, do nothing
-    inBuffer[inbuff_start] = 0;
-    inbuff_start = ( inbuff_start + 1 ) % INBOUND_QUEUE_SIZE;
+    struct command* cmd = commandBuffer->commands[commandBuffer->start_pos];
+    commandBuffer->commands[commandBuffer->start_pos] = NULL; //set to null so we dont have any dangling pointers
+    commandBuffer->start_pos = (commandBuffer->start_pos + 1) % INBOUND_QUEUE_SIZE;
     return cmd;
 }
 
@@ -119,13 +117,18 @@ struct command* popCommand() {
  * Pushes a command onto the command buffer queue.
  * This method is only used internally by the inboundBufferMaintenance function, so no need to expose this function
  * @param cmd Command to insert into the buffer
+ * @return 1 if command successfully pushed, or 0 otherwise
  */
-static int pushCommand(struct command* cmd) {
-    if ( inbuff_end == ( inbuff_start - 1 + INBOUND_QUEUE_SIZE ) % INBOUND_QUEUE_SIZE ) {
-        return 0;   // If no room for commands, fail
+static char pushCommand(struct command* cmd) {
+    short insert_position = (commandBuffer->end_pos + 1) % INBOUND_QUEUE_SIZE;
+
+    //check if we've run out of space on our command buffer. If so return false/0
+    if (insert_position == commandBuffer->start_pos){
+        return 0;
     }
-    inBuffer[inbuff_end] = cmd;     // Insert cmd at end of queue
-    inbuff_end = ( inbuff_end + 1 ) % INBOUND_QUEUE_SIZE; // increment handling wrap
+    //otherwise we'll add the command
+    commandBuffer->end_pos = insert_position;
+    commandBuffer->commands[insert_position] = cmd;
     return 1;
 }
 

@@ -47,6 +47,7 @@ void StateMachine(char entryLocation){
     
     //Clear Watchdog timer
     asm("CLRWDT");
+    
     //Feedback systems such as this autopilot are very sensitive to timing. In order to keep it consistent we should try to keep the timing between the calculation of error corrections and the output the same.
     //In other words, roll pitch and yaw control, mixing, and output should take place in the same step.
     if(AMUpdate){

@@ -1223,7 +1223,7 @@ VN100_SPI_Packet* VN100_SPI_Tare(unsigned char sensorID){
   VN_SPI_SetSS(sensorID, VN_PIN_LOW);
 
   /* Send command over SPI */
-  VN_SPI_SendReceive(VN_BYTES2WORD(0, 0, 0, VN100_CmdID_Tare));
+  VN_SPI_SendReceive(VN_BYTES2WORD(0, 0, 0, VN100_CmdID_Tare2));
   VN_SPI_SendReceive(0);
 
   /* Pull SS line high */

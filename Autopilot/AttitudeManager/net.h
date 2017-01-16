@@ -186,8 +186,8 @@ int sendTelemetryBlock(struct telem_block *telem);
  */
 
 /**
- * Destroys and deallocates a command
- * @param The pointer to the command to remove
+ * Destroys and deallocates a command.
+ * @param The pointer to the command to remove.
  */
 void destroyCommand( struct command* cmd );
 

@@ -128,12 +128,18 @@ void pathManagerInit(void) {
 #endif
 }
 
+char temp[66];
+
 void pathManagerRuntime(void) {
 #if DEBUG
 //    char str[16];
 //    sprintf(&str,"%f",pmData.time);
 //    UART1_SendString(&str);
 #endif
+   
+    sprintf(temp, "%f", pmData.altitude);
+    debug((const char*)temp);
+    
     copyGPSData();
 
     if (returnHome){
